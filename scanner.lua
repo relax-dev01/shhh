@@ -1,87 +1,94 @@
--- [[ Zero-Risk Ultra-Stealth Scanner ]] --
+-- [[ High-Visibility Scanner with Notifications ]] --
 
-if _G.ScannerRunning then return end
-_G.ScannerRunning = true
+local StarterGui = game:GetService("StarterGui")
 
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local CoreGui = game:GetService("CoreGui") -- Görselleri buraya gizleyecegiz
-local Workspace = game:GetService("Workspace")
+-- Bildirim Fonksiyonu
+local function notify(title, text)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title;
+            Text = text;
+            Duration = 5;
+        })
+    end)
+end
 
 local suspiciousNames = {"backdoor", "infection", "virus", "remote", "module", "mainmodule"}
 
--- Görseller için gizli bir klasör oluştur
-local espFolder = CoreGui:FindFirstChild("Hidden_ESP_Folder")
-if not espFolder then
-    espFolder = Instance.new("Folder")
-    espFolder.Name = "Hidden_ESP_Folder"
-    espFolder.Parent = CoreGui
-end
+-- Görsel Efekt
+local function applyGlow(object, path)
+    if object:FindFirstChild("BackdoorGlow") then return end
+    
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "BackdoorGlow"
+    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+    highlight.FillTransparency = 0.4
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = object
 
-local function applySafeESP(object, path)
-    -- Çizgi (SelectionBox)
-    local sBox = Instance.new("SelectionBox")
-    sBox.Adornee = object
-    sBox.Color3 = Color3.fromRGB(255, 0, 0)
-    sBox.LineThickness = 0.05
-    sBox.AlwaysOnTop = true
-    sBox.Parent = espFolder -- Modelin içine değil, gizli klasöre koyuyoruz
-
-    -- Yazı (Billboard)
     local billboard = Instance.new("BillboardGui")
-    billboard.Size = UDim2.new(0, 150, 0, 40)
+    billboard.Size = UDim2.new(0, 200, 0, 50)
     billboard.AlwaysOnTop = true
     billboard.Adornee = object
-    billboard.Parent = espFolder -- Gizli klasöre koyuyoruz
+    billboard.Parent = object
     
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 1, 0)
     label.BackgroundTransparency = 1
-    label.Text = "backdoor\n" .. path
-    label.TextColor3 = Color3.fromRGB(255, 0, 0)
-    label.TextStrokeTransparency = 0.5
+    label.Text = "🚨 backdoor 🚨\n" .. path
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextStrokeColor3 = Color3.fromRGB(255, 0, 0)
+    label.TextStrokeTransparency = 0
     label.Font = Enum.Font.SourceSansBold
-    label.TextSize = 10
+    label.TextSize = 11
+    label.TextWrapped = true
     label.Parent = billboard
 end
 
-local function passiveScan()
-    local descendants = Workspace:GetDescendants()
+-- Tarama ve Bildirim
+local function startScan()
+    notify("🛡️ Scanner", "Tarama baslatildi...")
     local count = 0
-
-    for i, v in pairs(descendants) do
-        -- Her 20 nesnede bir bekle (En güvenli hız)
-        if i % 20 == 0 then task.wait() end
-        
+    
+    for _, v in pairs(workspace:GetDescendants()) do
         pcall(function()
-            local isFound = false
-            local nameLower = string.lower(v.Name)
-            
-            -- Sadece isimden tespit (En güvenli yol)
-            for _, sName in pairs(suspiciousNames) do
-                if string.find(nameLower, sName) then
-                    isFound = true
-                    break
+            if v:IsA("Model") or v:IsA("BasePart") or v:IsA("RemoteEvent") then
+                local isFound = false
+                local name = string.lower(v.Name)
+                
+                for _, sName in pairs(suspiciousNames) do
+                    if string.find(name, sName) then
+                        isFound = true
+                        break
+                    end
                 end
-            end
-            
-            -- Remote kontrolü (Sadece yerini bul, ASLA dokunma)
-            if v:IsA("RemoteEvent") and not v:IsDescendantOf(ReplicatedStorage) then
-                isFound = true
-            end
+                
+                if not isFound and v:IsA("RemoteEvent") then
+                    if not v:IsDescendantOf(game:GetService("ReplicatedStorage")) then
+                        isFound = true
+                    end
+                end
 
-            if isFound then
-                local target = v
-                if v:IsA("RemoteEvent") then target = v.Parent end
-                if target:IsA("Model") or target:IsA("BasePart") then
-                    count = count + 1
-                    applySafeESP(target, v:GetFullName())
+                if isFound then
+                    local target = v
+                    if v:IsA("RemoteEvent") then target = v.Parent end
+                    
+                    if target:IsA("Model") or target:IsA("BasePart") then
+                        applyGlow(target, v:GetFullName())
+                        count = count + 1
+                    end
                 end
             end
         end)
     end
-    print("🛡️ Tarama bitti. Bulunan: " .. count)
-    _G.ScannerRunning = false
+    
+    if count > 0 then
+        notify("⚠️ TEHDİT BULUNDU!", "Toplam " .. count .. " adet backdoor isaretlendi.")
+    else
+        notify("✅ TEMİZ", "Herhangi bir backdoor bulunamadi.")
+    end
 end
 
-task.spawn(passiveScan)
+-- Baslat
+startScan()
