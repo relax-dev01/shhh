@@ -1,4 +1,4 @@
--- [[ High-Visibility Scanner with Notifications ]] --
+-- [[ Backdoor Scanner - Path & Script Detection ]] --
 
 local StarterGui = game:GetService("StarterGui")
 
@@ -8,17 +8,26 @@ local function notify(title, text)
         StarterGui:SetCore("SendNotification", {
             Title = title;
             Text = text;
-            Duration = 5;
+            Duration = 4;
         })
     end)
 end
 
 local suspiciousNames = {"backdoor", "infection", "virus", "remote", "module", "mainmodule"}
 
--- Görsel Efekt
-local function applyGlow(object, path)
+-- Görsel Efekt ve Özel Path Formatı
+local function applyGlow(object, detectedObj)
     if object:FindFirstChild("BackdoorGlow") then return end
     
+    -- Path Formatlama: . yerine / kullan ve (script) ekle
+    local fullPath = detectedObj:GetFullName()
+    local formattedPath = string.gsub(fullPath, "%.", "/") -- Noktaları Slash yap
+    
+    if detectedObj:IsA("LuaSourceContainer") or string.find(string.lower(detectedObj.ClassName), "script") then
+        formattedPath = formattedPath .. " (script)"
+    end
+
+    -- Parlama (Highlight)
     local highlight = Instance.new("Highlight")
     highlight.Name = "BackdoorGlow"
     highlight.FillColor = Color3.fromRGB(255, 0, 0)
@@ -27,8 +36,9 @@ local function applyGlow(object, path)
     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     highlight.Parent = object
 
+    -- Yazı Etiketi
     local billboard = Instance.new("BillboardGui")
-    billboard.Size = UDim2.new(0, 200, 0, 50)
+    billboard.Size = UDim2.new(0, 250, 0, 60)
     billboard.AlwaysOnTop = true
     billboard.Adornee = object
     billboard.Parent = object
@@ -36,59 +46,59 @@ local function applyGlow(object, path)
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 1, 0)
     label.BackgroundTransparency = 1
-    label.Text = "🚨 backdoor 🚨\n" .. path
+    label.Text = "🚨 backdoor 🚨\n" .. formattedPath
     label.TextColor3 = Color3.fromRGB(255, 255, 255)
     label.TextStrokeColor3 = Color3.fromRGB(255, 0, 0)
     label.TextStrokeTransparency = 0
     label.Font = Enum.Font.SourceSansBold
-    label.TextSize = 11
+    label.TextSize = 10 -- Path uzun olabileceği için biraz küçülttüm
     label.TextWrapped = true
     label.Parent = billboard
 end
 
--- Tarama ve Bildirim
+-- Tarama Fonksiyonu
 local function startScan()
-    notify("🛡️ Scanner", "Tarama baslatildi...")
+    notify("🔍 Scanner", "Detayli tarama baslatildi...")
     local count = 0
     
-    for _, v in pairs(workspace:GetDescendants()) do
+    -- Tüm oyunu tara (StarterPack, Workspace vb.)
+    for _, v in pairs(game:GetDescendants()) do
         pcall(function()
-            if v:IsA("Model") or v:IsA("BasePart") or v:IsA("RemoteEvent") then
-                local isFound = false
-                local name = string.lower(v.Name)
-                
-                for _, sName in pairs(suspiciousNames) do
-                    if string.find(name, sName) then
-                        isFound = true
-                        break
-                    end
+            local isFound = false
+            local name = string.lower(v.Name)
+            
+            -- Isim Kontrolü
+            for _, sName in pairs(suspiciousNames) do
+                if string.find(name, sName) then
+                    isFound = true
+                    break
                 end
-                
-                if not isFound and v:IsA("RemoteEvent") then
-                    if not v:IsDescendantOf(game:GetService("ReplicatedStorage")) then
-                        isFound = true
-                    end
-                end
+            end
+            
+            -- Remote Kontrolü (Yanlış yerdeki remotelar)
+            if v:IsA("RemoteEvent") and not v:IsDescendantOf(game:GetService("ReplicatedStorage")) then
+                isFound = true
+            end
 
-                if isFound then
-                    local target = v
-                    if v:IsA("RemoteEvent") then target = v.Parent end
-                    
-                    if target:IsA("Model") or target:IsA("BasePart") then
-                        applyGlow(target, v:GetFullName())
-                        count = count + 1
-                    end
+            if isFound then
+                -- İşaretlenecek ana objeyi bul
+                local target = v
+                if v:IsA("RemoteEvent") or v:IsA("Script") or v:IsA("LocalScript") or v:IsA("ModuleScript") then
+                    target = v.Parent
+                end
+                
+                -- Sadece fiziksel bir karşılığı olanları işaretle
+                if target:IsA("Model") or target:IsA("BasePart") or target:IsA("Tool") then
+                    applyGlow(target, v)
+                    count = count + 1
                 end
             end
         end)
+        -- Donmayı engellemek için her 200 nesnede bir çok kısa bekleme
+        if _ % 200 == 0 then task.wait() end
     end
     
-    if count > 0 then
-        notify("⚠️ TEHDİT BULUNDU!", "Toplam " .. count .. " adet backdoor isaretlendi.")
-    else
-        notify("✅ TEMİZ", "Herhangi bir backdoor bulunamadi.")
-    end
+    notify("✅ Tarama Bitti", "Toplam " .. count .. " tehdit bulundu.")
 end
 
--- Baslat
 startScan()
