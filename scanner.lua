@@ -1,47 +1,84 @@
--- [[ Guaranteed Backdoor Finder - Updated Label ]] --
+-- [[ Backdoor Scanner & Highlighter V1.0 ]] --
 
-local function applyGuaranteedESP(object)
-    if object:FindFirstChild("BackdoorVisual") then return end
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- 1. Görsel Efekt (Kalın Çizgiler ve Etiket)
+local function applyESP(object)
+    if object:FindFirstChild("BackdoorHighlight") then return end
     
-    local visualFolder = Instance.new("Folder")
-    visualFolder.Name = "BackdoorVisual"
-    visualFolder.Parent = object
+    -- Komple Kırmızı Çizgi Kaplaması (SelectionBox)
+    local highlight = Instance.new("SelectionBox")
+    highlight.Name = "BackdoorHighlight"
+    highlight.Adornee = object
+    highlight.Color3 = Color3.fromRGB(255, 0, 0)
+    highlight.LineThickness = 0.15 -- Çizgiyi kalınlaştırdım
+    highlight.AlwaysOnTop = true
+    highlight.SurfaceColor3 = Color3.fromRGB(255, 0, 0)
+    highlight.SurfaceTransparency = 0.6 -- İçini de hafif kırmızı yapar
+    highlight.Parent = object
 
-    -- 1. Kırmızı Kutu (BoxHandleAdornment)
-    local box = Instance.new("BoxHandleAdornment")
-    box.Size = (object:IsA("Model") and object:GetExtentsSize() or object.Size) + Vector3.new(0.2, 0.2, 0.2)
-    box.AlwaysOnTop = true
-    box.ZIndex = 10
-    box.Color3 = Color3.fromRGB(255, 0, 0)
-    box.Adornee = object
-    box.Transparency = 0.6
-    box.Parent = visualFolder
+    -- "backdoor" Yazısı
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "BackdoorLabel"
+    billboard.Size = UDim2.new(0, 100, 0, 50)
+    billboard.AlwaysOnTop = true
+    billboard.Adornee = object
+    billboard.Parent = object
 
-    -- 2. Kalın Kenar Çizgileri
-    local sBox = Instance.new("SelectionBox")
-    sBox.Adornee = object
-    sBox.Color3 = Color3.fromRGB(255, 0, 0)
-    sBox.LineThickness = 0.1
-    sBox.AlwaysOnTop = true
-    sBox.Parent = visualFolder
-
-    -- 3. Yazı Etiketi (İstediğin "backdoor" yazısı)
-    local bgui = Instance.new("BillboardGui")
-    bgui.Size = UDim2.new(0, 100, 0, 40)
-    bgui.AlwaysOnTop = true
-    bgui.Adornee = object
-    bgui.Parent = visualFolder
-    
-    local txt = Instance.new("TextLabel")
-    txt.Size = UDim2.new(1, 0, 1, 0)
-    txt.Text = "backdoor" -- Sadece backdoor yazısı
-    txt.TextColor3 = Color3.fromRGB(255, 0, 0) -- Kırmızı yazı
-    txt.TextStrokeColor3 = Color3.fromRGB(255, 255, 255) -- Beyaz dış hat (okunurluk için)
-    txt.TextStrokeTransparency = 0
-    txt.BackgroundTransparency = 1
-    txt.Font = Enum.Font.GothamBold
-    txt.TextSize = 20
-    txt.Parent = bgui
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "backdoor"
+    label.TextColor3 = Color3.fromRGB(255, 0, 0)
+    label.TextStrokeColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextStrokeTransparency = 0
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 20
+    label.Parent = billboard
 end
 
--- Diğer tarama ve bağlantı kodları aynı kalıyor...
+-- 2. Otomatik Bağlantı Kurma ve Tarama
+local function startScanner()
+    print("🛡️ Tarama ve Baglanti baslatildi...")
+    
+    for _, v in pairs(game:GetDescendants()) do
+        -- Oyunun donmaması için her 100 nesnede bir çok kısa bekleme
+        if _ % 100 == 0 then task.wait() end
+        
+        local success, result = pcall(function()
+            local isSuspicious = false
+            local name = string.lower(v.Name)
+            
+            -- Kriter 1: Isim (Backdoor, virus vb.)
+            if string.find(name, "backdoor") or string.find(name, "virus") or string.find(name, "remote") then
+                isSuspicious = true
+            end
+            
+            -- Kriter 2: Yanlış yerdeki RemoteEvent (Otomatik Bağlantı Kur)
+            if v:IsA("RemoteEvent") then
+                if not v:IsDescendantOf(ReplicatedStorage) then
+                    isSuspicious = true
+                    -- OTOMATİK BAĞLANTI: Remote'u uyandırıyoruz
+                    pcall(function() v:FireServer("checking") end)
+                end
+            end
+
+            if isSuspicious then
+                -- Eğer Remote ise onun üst modelini veya partını işaretle
+                local target = v
+                if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+                    target = v.Parent
+                end
+                
+                if target:IsA("Model") or target:IsA("BasePart") then
+                    applyESP(target)
+                end
+            end
+        end)
+    end
+    print("✅ Tarama bitti.")
+end
+
+-- Calistir
+task.spawn(startScanner)
