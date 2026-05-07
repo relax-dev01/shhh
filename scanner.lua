@@ -1,93 +1,96 @@
--- [[ Backdoor Scanner & Highlighter ]] --
+-- [[ Ultra-Bold Backdoor ESP - No Connection Needed ]] --
 
-local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui") -- UI'ları gizli tutmak için
+local workspace = game:GetService("Workspace")
+local suspiciousNames = {"backdoor", "infection", "virus", "remote", "module", "mainmodule", "vape", "cmd"}
 
--- Tespit edilecek şüpheli isimler listesi
-local suspiciousNames = {"backdoor", "infection", "virus", "remote", "module", "mainmodule"}
+local function applyBoldESP(object)
+    if object:FindFirstChild("UltraBackdoorESP") then return end
+    
+    local folder = Instance.new("Folder")
+    folder.Name = "UltraBackdoorESP"
+    folder.Parent = object
 
--- İşaretleme fonksiyonu
-local function highlightBackdoor(object)
-    -- 1. Kırmızı Çizgi (Highlight)
+    -- 1. KALIN KIRMIZI ÇERÇEVE (Duvar arkası bile sırıtır)
+    local box = Instance.new("SelectionBox")
+    box.Adornee = object
+    box.Color3 = Color3.fromRGB(255, 0, 0)
+    box.LineThickness = 0.1 -- Çizgiyi iyice kalınlaştırdım
+    box.SurfaceColor3 = Color3.fromRGB(255, 0, 0)
+    box.SurfaceTransparency = 0.4 -- İçini de belirgin kırmızı yapar
+    box.AlwaysOnTop = true
+    box.Parent = folder
+
+    -- 2. PARLAMA EFEKTİ (Highlight - Komple kırmızı blok yapar)
     local highlight = Instance.new("Highlight")
-    highlight.Name = "BackdoorHighlight"
-    highlight.FillColor = Color3.fromRGB(255, 0, 0) -- İç dolgu kırmızı
-    highlight.FillTransparency = 0.5 -- Yarı şeffaf
-    highlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- Dış çizgi beyaz (daha belirgin olması için)
+    highlight.Adornee = object
+    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+    highlight.FillTransparency = 0.2 -- Çok daha az şeffaf, daha çok kırmızı
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
     highlight.OutlineTransparency = 0
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- Duvar arkasından bile görünür
-    highlight.Parent = object
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = folder
 
-    -- 2. "Backdoor" Yazısı (BillboardGui)
+    -- 3. BÜYÜK YAZI ETİKETİ
     local billboard = Instance.new("BillboardGui")
-    billboard.Name = "BackdoorLabel"
-    billboard.Size = UDim2.new(0, 100, 0, 50)
-    billboard.AlwaysOnTop = true -- Her zaman üstte
-    billboard.Adornee = object -- Modeli hedefle
-    billboard.Parent = object
-
+    billboard.Size = UDim2.new(0, 200, 0, 100)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = folder
+    
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 1, 0)
     label.BackgroundTransparency = 1
-    label.Text = "🚨 BACKDOOR 🚨"
+    label.Text = "!!! BACKDOOR !!!"
     label.TextColor3 = Color3.fromRGB(255, 0, 0)
+    label.TextStrokeColor3 = Color3.fromRGB(255, 255, 255)
     label.TextStrokeTransparency = 0
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 20
+    label.Font = Enum.Font.FredokaOne -- Daha kalın bir font
+    label.TextSize = 25
     label.Parent = billboard
 end
 
--- Tarama fonksiyonu
-local function scan()
-    print("🛡️ Tarama başlatıldı...")
-    local detectedCount = 0
-
+-- AGRESİF TARAMA (Hemen Çalışır)
+local function aggressiveScan()
+    -- Sadece Workspace değil, tüm oyunu tara (Hemen gösterir)
     for _, v in pairs(game:GetDescendants()) do
-        -- Sadece Model veya Part olan nesneleri ve bizim oluşturmadığımız işaretleri tara
-        if (v:IsA("Model") or v:IsA("BasePart")) and not v:FindFirstChild("BackdoorHighlight") then
-            local isSuspicious = false
-            
-            -- İsim kontrolü
-            for _, name in pairs(suspiciousNames) do
-                if string.find(string.lower(v.Name), name) then
-                    isSuspicious = true
-                    break
+        pcall(function() -- Hata almamak için (Erişim engeli olan yerler için)
+            if v:IsA("Model") or v:IsA("BasePart") then
+                local name = string.lower(v.Name)
+                local found = false
+                
+                -- Kriter 1: İsim kontrolü
+                for _, sName in pairs(suspiciousNames) do
+                    if string.find(name, sName) then
+                        found = true
+                        break
+                    end
+                end
+                
+                -- Kriter 2: İçinde RemoteEvent var mı? (Görünmez backdoorların çoğu bunu taşır)
+                if not found and v:FindFirstChildOfClass("RemoteEvent") then
+                    -- Eğer RemoteEvent ReplicatedStorage dışında bir yerdeyse şüphelidir
+                    found = true
+                end
+
+                if found then
+                    applyBoldESP(v)
                 end
             end
-
-            -- İçinde şüpheli script kontrolü (Bazı backdoorlar isimsizdir)
-            if not isSuspicious then
-                local scriptIn = v:FindFirstChildOfClass("Script") or v:FindFirstChildOfClass("ModuleScript")
-                if scriptIn and (string.find(string.lower(scriptIn.Name), "backdoor") or string.find(string.lower(scriptIn.Name), "virus")) then
-                    isSuspicious = true
-                end
-            end
-
-            if isSuspicious then
-                detectedCount = detectedCount + 1
-                highlightBackdoor(v)
-                print("⚠️ Tespit Edildi: " .. v:GetFullName())
-            end
-        end
+        end)
     end
-    print("✅ Tarama bitti. Toplam tespit edilen: " .. detectedCount)
 end
 
--- Scripti çalıştırınca taramayı başlat
-scan()
+-- BAĞLANTI BEKLEMEDEN ÇALIŞTIR
+print("🔴 Ultra Scanner Başlatıldı!")
+aggressiveScan()
 
--- Yeni eklenen nesneleri de anlık olarak takip et (Canlı Koruma)
-game.DescendantAdded:Connect(function(descendant)
-    task.wait(1) -- Tam yüklenmesi için kısa bir bekleme
-    local isSuspicious = false
-    for _, name in pairs(suspiciousNames) do
-        if string.find(string.lower(descendant.Name), name) then
-            isSuspicious = true
-            break
+-- Oyun boyu yeni gelenleri takip et
+game.DescendantAdded:Connect(function(v)
+    pcall(function()
+        if v:IsA("Model") or v:IsA("BasePart") then
+            local name = string.lower(v.Name)
+            if string.find(name, "backdoor") or v:FindFirstChildOfClass("RemoteEvent") then
+                applyBoldESP(v)
+            end
         end
-    end
-    
-    if isSuspicious and (descendant:IsA("Model") or descendant:IsA("BasePart")) then
-        highlightBackdoor(descendant)
-    end
+    end)
 end)
